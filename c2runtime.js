@@ -20842,8 +20842,9 @@ cr.getObjectRefTable = function () { return [
 	cr.behaviors.Turret.prototype.acts.AcquireTarget,
 	cr.system_object.prototype.cnds.PickAll,
 	cr.system_object.prototype.acts.SubVar,
-	cr.plugins_.Touch.prototype.cnds.IsInTouch,
+	cr.plugins_.Touch.prototype.cnds.OnTouchStart,
 	cr.plugins_.Touch.prototype.exps.X,
-	cr.plugins_.Mouse.prototype.cnds.OnObjectClicked
+	cr.plugins_.Mouse.prototype.cnds.OnObjectClicked,
+	cr.plugins_.Touch.prototype.cnds.OnTapGestureObject
 ];};
 
