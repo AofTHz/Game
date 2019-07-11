@@ -20807,7 +20807,6 @@ cr.getObjectRefTable = function () { return [
 	cr.behaviors.Turret,
 	cr.system_object.prototype.cnds.EveryTick,
 	cr.plugins_.Mouse.prototype.cnds.IsOverObject,
-	cr.system_object.prototype.cnds.IsMobile,
 	cr.plugins_.Sprite.prototype.acts.SetX,
 	cr.plugins_.Mouse.prototype.exps.X,
 	cr.plugins_.Mouse.prototype.acts.SetCursor,
