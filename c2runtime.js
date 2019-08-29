@@ -15231,6 +15231,21 @@ cr.shaders["blacknwhitemask"] = {src: ["varying mediump vec2 vTex;",
 	preservesOpaqueness: true,
 	animated: false,
 	parameters: [["threshold", 0, 1]] }
+cr.shaders["gamma"] = {src: ["varying mediump vec2 vTex;",
+"uniform lowp sampler2D samplerFront;",
+"uniform mediump float gamma;",
+"void main(void)",
+"{",
+"lowp vec4 front = texture2D(samplerFront, vTex);",
+"gl_FragColor = vec4(pow(front.rgb, vec3(gamma)), front.a);",
+"}"
+].join("\n"),
+	extendBoxHorizontal: 0,
+	extendBoxVertical: 0,
+	crossSampling: false,
+	preservesOpaqueness: true,
+	animated: false,
+	parameters: [["gamma", 0, 0]] }
 cr.shaders["glowhorizontal"] = {src: ["varying mediump vec2 vTex;",
 "uniform mediump sampler2D samplerFront;",
 "uniform mediump float pixelWidth;",
@@ -15301,6 +15316,99 @@ cr.shaders["inverse"] = {src: ["varying mediump vec2 vTex;",
 	preservesOpaqueness: true,
 	animated: false,
 	parameters: [["intensity", 0, 1]] }
+cr.shaders["radialblur"] = {src: ["precision mediump float;",
+"varying vec2 vTex;",
+"uniform sampler2D samplerFront;",
+"uniform float pixelWidth;",
+"uniform float pixelHeight;",
+"uniform float intensity;",
+"uniform float radius;",
+"void main(void)",
+"{",
+"vec2 dir = 0.5 - vTex;",
+"float dist = sqrt(dir.x*dir.x + dir.y*dir.y);",
+"dir = dir/dist;",
+"vec4 front = texture2D(samplerFront, vTex);",
+"vec4 sum = front;",
+"sum += texture2D(samplerFront, vTex + dir * -0.08 * radius);",
+"sum += texture2D(samplerFront, vTex + dir * -0.05 * radius);",
+"sum += texture2D(samplerFront, vTex + dir * -0.03 * radius);",
+"sum += texture2D(samplerFront, vTex + dir * -0.02 * radius);",
+"sum += texture2D(samplerFront, vTex + dir * -0.01 * radius);",
+"sum += texture2D(samplerFront, vTex + dir * 0.01 * radius);",
+"sum += texture2D(samplerFront, vTex + dir * 0.02 * radius);",
+"sum += texture2D(samplerFront, vTex + dir * 0.03 * radius);",
+"sum += texture2D(samplerFront, vTex + dir * 0.05 * radius);",
+"sum += texture2D(samplerFront, vTex + dir * 0.08 * radius);",
+"sum /= 11.0;",
+"float t = dist * 2.2;",
+"t = clamp(t, 0.0, 1.0);",
+"gl_FragColor = mix(front, mix(front, sum, t), intensity);",
+"}"
+].join("\n"),
+	extendBoxHorizontal: 32,
+	extendBoxVertical: 32,
+	crossSampling: false,
+	preservesOpaqueness: false,
+	animated: false,
+	parameters: [["radius", 0, 1], ["intensity", 0, 1]] }
+cr.shaders["scanlines"] = {src: ["varying mediump vec2 vTex;",
+"uniform lowp sampler2D samplerFront;",
+"uniform mediump float pixelHeight;",
+"uniform mediump float lineHeight;",
+"void main(void)",
+"{",
+"lowp vec4 front = texture2D(samplerFront, vTex);",
+"mediump float factor = 1.0 + (floor(mod(vTex.y, pixelHeight * lineHeight * 2.0) / (pixelHeight * lineHeight)) / 3.0);",
+"front.rgb /= factor;",
+"gl_FragColor = front;",
+"}"
+].join("\n"),
+	extendBoxHorizontal: 0,
+	extendBoxVertical: 0,
+	crossSampling: false,
+	preservesOpaqueness: true,
+	animated: false,
+	parameters: [["lineHeight", 0, 0]] }
+cr.shaders["tint"] = {src: ["varying mediump vec2 vTex;",
+"uniform lowp sampler2D samplerFront;",
+"uniform lowp float red;",
+"uniform lowp float green;",
+"uniform lowp float blue;",
+"void main(void)",
+"{",
+"lowp vec4 front = texture2D(samplerFront, vTex);",
+"gl_FragColor = front * vec4(red, green, blue, 1.0);",
+"}"
+].join("\n"),
+	extendBoxHorizontal: 0,
+	extendBoxVertical: 0,
+	crossSampling: false,
+	preservesOpaqueness: true,
+	animated: false,
+	parameters: [["red", 0, 1], ["green", 0, 1], ["blue", 0, 1]] }
+cr.shaders["vignette"] = {src: ["varying mediump vec2 vTex;",
+"uniform lowp sampler2D samplerFront;",
+"uniform mediump float vignetteStart;",
+"uniform mediump float vignetteEnd;",
+"void main(void)",
+"{",
+"lowp vec4 front = texture2D(samplerFront, vTex);",
+"lowp float a = front.a;",
+"if (a != 0.0)",
+"front.rgb /= a;",
+"lowp float d = distance(vTex, vec2(0.5, 0.5));",
+"front.rgb *= smoothstep(vignetteEnd, vignetteStart, d);",
+"front.rgb *= a;",
+"gl_FragColor = front;",
+"}"
+].join("\n"),
+	extendBoxHorizontal: 0,
+	extendBoxVertical: 0,
+	crossSampling: false,
+	preservesOpaqueness: true,
+	animated: false,
+	parameters: [["vignetteStart", 0, 1], ["vignetteEnd", 0, 1]] }
 ;
 ;
 cr.plugins_.Audio = function(runtime)
@@ -21578,6 +21686,239 @@ cr.plugins_.TiledBg = function(runtime)
 }());
 ;
 ;
+cr.plugins_.progressbar = function(runtime)
+{
+	this.runtime = runtime;
+};
+(function ()
+{
+	var pluginProto = cr.plugins_.progressbar.prototype;
+	pluginProto.Type = function(plugin)
+	{
+		this.plugin = plugin;
+		this.runtime = plugin.runtime;
+	};
+	var typeProto = pluginProto.Type.prototype;
+	typeProto.onCreate = function()
+	{
+	};
+	pluginProto.Instance = function(type)
+	{
+		this.type = type;
+		this.runtime = type.runtime;
+	};
+	var instanceProto = pluginProto.Instance.prototype;
+	instanceProto.onCreate = function()
+	{
+		if (this.runtime.isDomFree)
+		{
+			cr.logexport("[Construct 2] Progress Bar plugin not supported on this platform - the object will not be created");
+			return;
+		}
+		this.elem = document.createElement("progress");
+		this.value = this.properties[0];
+		this.max = this.properties[1];
+		if (this.max > 0 && this.value >= 0)
+		{
+			this.elem["max"] = this.max;
+			this.elem["value"] = this.value;
+		}
+		this.elem.id = this.properties[4];
+		this.elem.title = this.properties[2];
+		jQuery(this.elem).appendTo(this.runtime.canvasdiv ? this.runtime.canvasdiv : "body");
+		this.element_hidden = false;
+		if (this.properties[3] === 0)
+		{
+			jQuery(this.elem).hide();
+			this.visible = false;
+			this.element_hidden = true;
+		}
+		this.elem.onclick = (function (self) {
+			return function(e) {
+				e.stopPropagation();
+				self.runtime.isInUserInputEvent = true;
+				self.runtime.trigger(cr.plugins_.progressbar.prototype.cnds.OnClicked, self);
+				self.runtime.isInUserInputEvent = false;
+			};
+		})(this);
+		this.elem.addEventListener("touchstart", function (e) {
+			e.stopPropagation();
+		}, false);
+		this.elem.addEventListener("touchmove", function (e) {
+			e.stopPropagation();
+		}, false);
+		this.elem.addEventListener("touchend", function (e) {
+			e.stopPropagation();
+		}, false);
+		jQuery(this.elem).mousedown(function (e) {
+			e.stopPropagation();
+		});
+		jQuery(this.elem).mouseup(function (e) {
+			e.stopPropagation();
+		});
+		this.lastLeft = 0;
+		this.lastTop = 0;
+		this.lastRight = 0;
+		this.lastBottom = 0;
+		this.lastWinWidth = 0;
+		this.lastWinHeight = 0;
+		this.updatePosition(true);
+		this.runtime.tickMe(this);
+	};
+	instanceProto.saveToJSON = function ()
+	{
+		var o = {
+			"v": this.elem["value"],
+			"m": this.elem["max"]
+		};
+		return o;
+	};
+	instanceProto.loadFromJSON = function (o)
+	{
+		this.elem["value"] = o["v"];
+		this.elem["max"] = o["m"];
+	};
+	instanceProto.onDestroy = function ()
+	{
+		if (this.runtime.isDomFree)
+			return;
+		jQuery(this.elem).remove();
+		this.elem = null;
+	};
+	instanceProto.tick = function ()
+	{
+		this.updatePosition();
+	};
+	var last_canvas_offset = null;
+	var last_checked_tick = -1;
+	instanceProto.updatePosition = function (first)
+	{
+		if (this.runtime.isDomFree)
+			return;
+		var left = this.layer.layerToCanvas(this.x, this.y, true);
+		var top = this.layer.layerToCanvas(this.x, this.y, false);
+		var right = this.layer.layerToCanvas(this.x + this.width, this.y + this.height, true);
+		var bottom = this.layer.layerToCanvas(this.x + this.width, this.y + this.height, false);
+		var rightEdge = this.runtime.width / this.runtime.devicePixelRatio;
+		var bottomEdge = this.runtime.height / this.runtime.devicePixelRatio;
+		if (!this.visible || !this.layer.visible || right <= 0 || bottom <= 0 || left >= rightEdge || top >= bottomEdge)
+		{
+			if (!this.element_hidden)
+				jQuery(this.elem).hide();
+			this.element_hidden = true;
+			return;
+		}
+		if (left < 1)
+			left = 1;
+		if (top < 1)
+			top = 1;
+		if (right >= rightEdge)
+			right = rightEdge - 1;
+		if (bottom >= bottomEdge)
+			bottom = bottomEdge - 1;
+		var curWinWidth = window.innerWidth;
+		var curWinHeight = window.innerHeight;
+		if (!first && this.lastLeft === left && this.lastTop === top && this.lastRight === right && this.lastBottom === bottom && this.lastWinWidth === curWinWidth && this.lastWinHeight === curWinHeight)
+		{
+			if (this.element_hidden)
+			{
+				jQuery(this.elem).show();
+				this.element_hidden = false;
+			}
+			return;
+		}
+		this.lastLeft = left;
+		this.lastTop = top;
+		this.lastRight = right;
+		this.lastBottom = bottom;
+		this.lastWinWidth = curWinWidth;
+		this.lastWinHeight = curWinHeight;
+		if (this.element_hidden)
+		{
+			jQuery(this.elem).show();
+			this.element_hidden = false;
+		}
+		var offx = Math.round(left) + jQuery(this.runtime.canvas).offset().left;
+		var offy = Math.round(top) + jQuery(this.runtime.canvas).offset().top;
+		jQuery(this.elem).css("position", "absolute");
+		jQuery(this.elem).offset({left: offx, top: offy});
+		jQuery(this.elem).width(Math.round(right - left));
+		jQuery(this.elem).height(Math.round(bottom - top));
+	};
+	instanceProto.draw = function(ctx)
+	{
+	};
+	instanceProto.drawGL = function(glw)
+	{
+	};
+	function Cnds() {};
+	Cnds.prototype.OnClicked = function ()
+	{
+		return true;
+	};
+	Cnds.prototype.CompareProgress = function (cmp, x)
+	{
+		if (this.isDomFree)
+			return false;
+		return cr.do_cmp(this.elem["value"], cmp, x);
+	};
+	pluginProto.cnds = new Cnds();
+	function Acts() {};
+	Acts.prototype.SetTooltip = function (text)
+	{
+		if (this.runtime.isDomFree)
+			return;
+		this.elem.title = text;
+	};
+	Acts.prototype.SetVisible = function (vis)
+	{
+		if (this.runtime.isDomFree)
+			return;
+		this.visible = (vis !== 0);
+	};
+	Acts.prototype.SetCSSStyle = function (p, v)
+	{
+		if (this.runtime.isDomFree)
+			return;
+		jQuery(this.elem).css(p, v);
+	};
+	Acts.prototype.SetProgress = function (x)
+	{
+		if (this.runtime.isDomFree)
+			return;
+		this.value = x;
+		this.elem["max"] = this.max;
+		this.elem["value"] = this.value;
+	};
+	Acts.prototype.SetMaximum = function (x)
+	{
+		if (this.runtime.isDomFree)
+			return;
+		this.max = x;
+		this.elem["max"] = this.max;
+		this.elem["value"] = this.value;
+	};
+	Acts.prototype.SetIndeterminate = function ()
+	{
+		if (this.runtime.isDomFree)
+			return;
+		this.elem.removeAttribute("value");
+		this.elem.removeAttribute("max");
+	};
+	pluginProto.acts = new Acts();
+	function Exps() {};
+	Exps.prototype.Progress = function (ret)
+	{
+		ret.set_float(this.runtime.isDomFree ? 0 : this.elem["value"]);
+	};
+	Exps.prototype.Maximum = function (ret)
+	{
+		ret.set_float(this.runtime.isDomFree ? 0 : this.elem["max"]);
+	};
+	pluginProto.exps = new Exps();
+}());
+;
+;
 cr.plugins_.sliderbar = function(runtime)
 {
 	this.runtime = runtime;
@@ -24095,12 +24436,13 @@ cr.behaviors.wrap = function(runtime)
 }());
 cr.getObjectRefTable = function () { return [
 	cr.plugins_.Audio,
-	cr.plugins_.Mouse,
 	cr.plugins_.Keyboard,
+	cr.plugins_.Mouse,
 	cr.plugins_.Particles,
-	cr.plugins_.TiledBg,
+	cr.plugins_.progressbar,
 	cr.plugins_.sliderbar,
 	cr.plugins_.Text,
+	cr.plugins_.TiledBg,
 	cr.plugins_.Sprite,
 	cr.behaviors.solid,
 	cr.behaviors.jumpthru,
@@ -24123,19 +24465,24 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Sprite.prototype.acts.SetMirrored,
 	cr.plugins_.Keyboard.prototype.cnds.OnKey,
 	cr.system_object.prototype.cnds.CompareVar,
+	cr.plugins_.Audio.prototype.acts.Play,
+	cr.system_object.prototype.acts.SetLayoutEffectParam,
+	cr.system_object.prototype.acts.SetVar,
 	cr.behaviors.Platform.prototype.acts.SetMaxSpeed,
+	cr.system_object.prototype.acts.CreateObject,
+	cr.plugins_.Sprite.prototype.exps.X,
+	cr.plugins_.Sprite.prototype.exps.Y,
 	cr.behaviors.Platform.prototype.acts.SetVectorX,
 	cr.plugins_.Sprite.prototype.acts.SetEffectParam,
+	cr.plugins_.Sprite.prototype.acts.SetOpacity,
+	cr.plugins_.Sprite.prototype.acts.SetSize,
 	cr.system_object.prototype.acts.Wait,
-	cr.system_object.prototype.acts.SetVar,
 	cr.plugins_.Keyboard.prototype.cnds.OnAnyKeyReleased,
 	cr.behaviors.Platform.prototype.cnds.IsJumping,
 	cr.behaviors.Platform.prototype.cnds.IsOnFloor,
 	cr.behaviors.Platform.prototype.cnds.IsFalling,
 	cr.system_object.prototype.cnds.EveryTick,
 	cr.plugins_.Sprite.prototype.acts.SetPos,
-	cr.plugins_.Sprite.prototype.exps.X,
-	cr.plugins_.Sprite.prototype.exps.Y,
 	cr.plugins_.Sprite.prototype.acts.SetAngle,
 	cr.plugins_.Sprite.prototype.exps.Angle,
 	cr.plugins_.Sprite.prototype.acts.SetPosToObject,
@@ -24153,8 +24500,6 @@ cr.getObjectRefTable = function () { return [
 	cr.plugins_.Mouse.prototype.cnds.OnClick,
 	cr.plugins_.Sprite.prototype.cnds.CompareInstanceVar,
 	cr.behaviors.scrollto.prototype.acts.Shake,
-	cr.system_object.prototype.acts.CreateObject,
-	cr.plugins_.Audio.prototype.acts.Play,
 	cr.behaviors.Bullet.prototype.acts.SetAngleOfMotion,
 	cr.system_object.prototype.exps.random,
 	cr.system_object.prototype.acts.AddVar,
@@ -24189,16 +24534,29 @@ cr.getObjectRefTable = function () { return [
 	cr.system_object.prototype.acts.SetLayoutScale,
 	cr.plugins_.Sprite.prototype.cnds.IsBetweenAngles,
 	cr.plugins_.Sprite.prototype.cnds.CompareOpacity,
-	cr.plugins_.Sprite.prototype.acts.SetOpacity,
 	cr.plugins_.Sprite.prototype.exps.Opacity,
 	cr.plugins_.Sprite.prototype.cnds.CompareWidth,
 	cr.plugins_.Sprite.prototype.cnds.OnDestroyed,
 	cr.behaviors.Platform.prototype.acts.SetGravity,
+	cr.plugins_.Text.prototype.acts.SetFontColor,
+	cr.system_object.prototype.exps.rgb,
+	cr.plugins_.progressbar.prototype.acts.SetPos,
+	cr.plugins_.progressbar.prototype.acts.SetProgress,
+	cr.plugins_.progressbar.prototype.acts.SetVisible,
 	cr.plugins_.Mouse.prototype.cnds.OnObjectClicked,
 	cr.plugins_.Sprite.prototype.exps.AnimationFrame,
 	cr.plugins_.Text.prototype.acts.SetVisible,
+	cr.system_object.prototype.acts.SetLayerOpacity,
 	cr.plugins_.Sprite.prototype.cnds.IsAnimPlaying,
 	cr.plugins_.sliderbar.prototype.exps.Value,
-	cr.plugins_.sliderbar.prototype.acts.SetValue
+	cr.plugins_.sliderbar.prototype.acts.SetValue,
+	cr.system_object.prototype.acts.SetLayerVisible,
+	cr.plugins_.Sprite.prototype.cnds.CompareHeight,
+	cr.plugins_.Sprite.prototype.acts.SetHeight,
+	cr.plugins_.Sprite.prototype.exps.Height,
+	cr.system_object.prototype.cnds.LayerCmpOpacity,
+	cr.behaviors.Bullet.prototype.exps.Speed,
+	cr.plugins_.Sprite.prototype.cnds.CompareY,
+	cr.plugins_.Sprite.prototype.acts.SetY
 ];};
 
